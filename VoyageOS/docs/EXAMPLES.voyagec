@@ -1,0 +1,297 @@
+// Example VoyageOS Programs
+// VoyageC code samples for learning and reference
+
+// ==== HELLO WORLD ====
+fn hello_world() {
+    print("Hello, VoyageOS!");
+}
+
+// ==== FIBONACCI SEQUENCE ====
+fn fibonacci(num n) -> num {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+fn print_fibonacci(num count) {
+    num i = 0;
+    while (i < count) {
+        num fib = fibonacci(i);
+        print("Fibonacci(");
+        print_num(i);
+        print(") = ");
+        print_num(fib);
+        print("\n");
+        i = i + 1;
+    }
+}
+
+// ==== SYSTEM INTERACTION ====
+fn show_system_info() {
+    print("=== VoyageOS System Information ===\n");
+    print("Kernel Version: 0.1.0\n");
+    print("Architecture: x86-64\n");
+    print("Memory Available: 2 GB\n");
+    
+    // Get actual system info from kernel
+    num mem = get_total_memory();
+    print("Total Memory: ");
+    print_num(mem / 1024 / 1024);
+    print(" MB\n");
+}
+
+// ==== MEMORY OPERATIONS ====
+fn test_allocation() {
+    // Allocate 256 bytes
+    ptr buf = alloc(256);
+    
+    if (buf != 0) {
+        print("Memory allocated successfully\n");
+        
+        // Write to buffer
+        buf[0] = 65;  // 'A'
+        buf[1] = 66;  // 'B'
+        buf[2] = 67;  // 'C'
+        buf[3] = 0;   // null terminator
+        
+        print("Buffer contents: ");
+        print(cast(buf, string));
+        print("\n");
+        
+        // Free memory
+        free(buf);
+        print("Memory freed\n");
+    }
+}
+
+// ==== FILE I/O ====
+fn read_file_example() {
+    handle file = open("boot.log", "r");
+    
+    if (file != 0) {
+        text line = "";
+        while (read_line(file, &line)) {
+            print(line);
+            print("\n");
+        }
+        close(file);
+    } else {
+        print("Failed to open file\n");
+    }
+}
+
+fn write_file_example() {
+    handle file = open("output.txt", "w");
+    
+    if (file != 0) {
+        write(file, "Hello, file system!\n");
+        write(file, "VoyageOS file I/O works.\n");
+        close(file);
+        print("File written successfully\n");
+    }
+}
+
+// ==== ASSEMBLY INTEROP ====
+fn fast_multiply(num a, num b) -> num {
+    num result = 0;
+    
+    asm {
+        mov rax, [a]      // Load a into RAX
+        mov rbx, [b]      // Load b into RBX
+        imul rax, rbx     // a * b
+        mov [result], rax // Store in result
+    }
+    
+    return result;
+}
+
+fn get_rax() -> num {
+    num value = 0;
+    
+    asm {
+        mov [value], rax  // Read RSP
+    }
+    
+    return value;
+}
+
+// ==== INTERRUPT HANDLING ====
+fn handle_interrupt(num irq) {
+    if (irq == 0) {
+        print("Timer interrupt!\n");
+    }
+    else if (irq == 1) {
+        print("Keyboard interrupt!\n");
+    }
+    else if (irq == 14) {
+        print("Page fault!\n");
+    }
+    else {
+        print("Unknown interrupt: ");
+        print_num(irq);
+        print("\n");
+    }
+}
+
+// ==== STRING OPERATIONS ====
+fn string_example() {
+    text msg1 = "VoyageOS ";
+    text msg2 = "is awesome!";
+    
+    print(msg1);
+    print(msg2);
+    print("\n");
+    
+    // String length
+    num len = strlen(msg1);
+    print("Length: ");
+    print_num(len);
+    print("\n");
+    
+    // String compare
+    if (strcmp(msg1, "VoyageOS ") == 0) {
+        print("Strings match!\n");
+    }
+    
+    // String copy
+    text buffer = "";
+    strcpy(&buffer, msg1);
+    strcat(&buffer, msg2);
+    print("Concatenated: ");
+    print(buffer);
+    print("\n");
+}
+
+// ==== ARRAY OPERATIONS ====
+fn array_example() {
+    num arr[10];
+    
+    // Fill array
+    num i = 0;
+    while (i < 10) {
+        arr[i] = i * 2;
+        i = i + 1;
+    }
+    
+    // Print array
+    print("Array: ");
+    i = 0;
+    while (i < 10) {
+        print_num(arr[i]);
+        print(" ");
+        i = i + 1;
+    }
+    print("\n");
+    
+    // Find max
+    num max = arr[0];
+    i = 1;
+    while (i < 10) {
+        if (arr[i] > max) {
+            max = arr[i];
+        }
+        i = i + 1;
+    }
+    
+    print("Max value: ");
+    print_num(max);
+    print("\n");
+}
+
+// ==== STRUCTURES ====
+struct Point {
+    num x;
+    num y;
+}
+
+struct Color {
+    num r;
+    num g;
+    num b;
+    num a;
+}
+
+fn create_point(num x, num y) -> Point {
+    Point p = {x: x, y: y};
+    return p;
+}
+
+fn distance_from_origin(Point p) -> num {
+    // Simple Manhattan distance
+    num dx = p.x;
+    num dy = p.y;
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    return dx + dy;
+}
+
+fn color_example() {
+    Color red = {r: 255, g: 0, b: 0, a: 255};
+    Color green = {r: 0, g: 255, b: 0, a: 255};
+    Color blue = {r: 0, g: 0, b: 255, a: 255};
+    
+    print("Color system initialized\n");
+}
+
+// ==== LOOPS AND CONDITIONS ====
+fn prime_checker(num n) -> num {
+    if (n < 2) return 0;
+    if (n == 2) return 1;
+    
+    num i = 2;
+    while (i * i <= n) {
+        if (n % i == 0) {
+            return 0;  // Not prime
+        }
+        i = i + 1;
+    }
+    
+    return 1;  // Prime
+}
+
+fn find_primes(num max) {
+    print("Prime numbers up to ");
+    print_num(max);
+    print(": ");
+    
+    num i = 2;
+    while (i <= max) {
+        if (prime_checker(i)) {
+            print_num(i);
+            print(" ");
+        }
+        i = i + 1;
+    }
+    print("\n");
+}
+
+// ==== MAIN ENTRY POINT ====
+fn main() {
+    print("╔════════════════════════════════════╗\n");
+    print("║  VoyageOS Program Examples v0.1    ║\n");
+    print("║  Learning VoyageC through examples ║\n");
+    print("╚════════════════════════════════════╝\n\n");
+    
+    hello_world();
+    print("\n");
+    
+    print_fibonacci(8);
+    print("\n");
+    
+    show_system_info();
+    print("\n");
+    
+    find_primes(30);
+    print("\n");
+    
+    array_example();
+    print("\n");
+    
+    string_example();
+    print("\n");
+    
+    print("Examples complete!\n");
+    
+    return 0;
+}
