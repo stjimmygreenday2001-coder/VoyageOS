@@ -420,6 +420,9 @@ int strcmp(const char *s1, const char *s2) {
     }
     return *s1 - *s2;
 }
+
+/* Kernel entry point */
+void kmain(void) {
     vga_clear();
     
     uint8_t title_color = (COLOR_BLUE << 4) | COLOR_WHITE;
