@@ -7,6 +7,14 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include "../kernel/io.h"
+#include "../kernel/vga.h"
+#include "../kernel/stdlib.h"
+
+/* Forward declarations */
+void ide_draw_editor(void);
+void ide_update_cursor(void);
 
 /* Screen definitions */
 #define SCREEN_WIDTH 80
@@ -84,25 +92,47 @@ void vid_print(int x, int y, const char *str, uint8_t color) {
 void vid_draw_box(int x, int y, int w, int h, uint8_t color) {
     // Top border
     for (int i = 0; i < w; i++) {
-        vid_put_char(x + i, y, '─', color);
+        vid_put_char(x + i, y, '-', color);
     }
     // Bottom border
     for (int i = 0; i < w; i++) {
-        vid_put_char(x + i, y + h - 1, '─', color);
+        vid_put_char(x + i, y + h - 1, '-', color);
     }
     // Left and right borders
     for (int i = 1; i < h - 1; i++) {
-        vid_put_char(x, y + i, '│', color);
-        vid_put_char(x + w - 1, y + i, '│', color);
+        vid_put_char(x, y + i, '|', color);
+        vid_put_char(x + w - 1, y + i, '|', color);
     }
     // Corners
-    vid_put_char(x, y, '┌', color);
-    vid_put_char(x + w - 1, y, '┐', color);
-    vid_put_char(x, y + h - 1, '└', color);
-    vid_put_char(x + w - 1, y + h - 1, '┘', color);
+    vid_put_char(x, y, '+', color);
+    vid_put_char(x + w - 1, y, '+', color);
+    vid_put_char(x, y + h - 1, '+', color);
+    vid_put_char(x + w - 1, y + h - 1, '+', color);
 }
 
 /* IDE Functions */
+void ide_update_cursor(void) {
+    // Update hardware cursor position
+    int cursor_pos = (editor.cursor_y - editor.scroll_offset + 3) * SCREEN_WIDTH + editor.cursor_x + 2;
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(cursor_pos & 0xFF));
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((cursor_pos >> 8) & 0xFF));
+}
+
+void ide_draw_editor(void) {
+    /* Display editor buffer */
+    int display_line = 3;
+    
+    for (int i = editor.scroll_offset; i < editor.line_count && display_line < SCREEN_HEIGHT - 1; i++) {
+        if (editor.lines[i]) {
+            vid_print(2, display_line, editor.lines[i], 
+                      (COLOR_BLACK << 4) | COLOR_WHITE);
+        }
+        display_line++;
+    }
+}
+
 void ide_init(void) {
     vid_clear();
     editor.line_count = 0;
@@ -120,21 +150,23 @@ void ide_init(void) {
                  (COLOR_WHITE << 4) | COLOR_BLACK);
     
     /* Draw bottom status bar */
-    vid_print(0, SCREEN_HEIGHT - 1, "Ready | VoyageOS | Line: 1 Col: 1", 
-              (COLOR_WHITE << 4) | COLOR_GREEN);
-}
-
-void ide_draw_editor(void) {
-    /* Display editor buffer */
-    int display_line = 3;
+    char status[80];
+    char num_buf[16];
     
-    for (int i = editor.scroll_offset; i < editor.line_count && display_line < SCREEN_HEIGHT - 1; i++) {
-        if (editor.lines[i]) {
-            vid_print(2, display_line, editor.lines[i], 
-                      (COLOR_BLACK << 4) | COLOR_WHITE);
-        }
-        display_line++;
-    }
+    strcpy(status, "Ready | VoyageOS | Line: ");
+    itoa(editor.cursor_y + 1, num_buf, 10);
+    strcat(status, num_buf);
+    strcat(status, " Col: ");
+    itoa(editor.cursor_x + 1, num_buf, 10);
+    strcat(status, num_buf);
+    strcat(status, " | Int: ");
+    itoa(keyboard_get_interrupt_count(), num_buf, 10);
+    strcat(status, num_buf);
+    
+    vid_print(0, SCREEN_HEIGHT - 1, status, 
+              (COLOR_WHITE << 4) | COLOR_GREEN);
+              
+    ide_update_cursor();
 }
 
 void ide_show_menu(void) {
@@ -195,20 +227,62 @@ void ide_main(void) {
     ide_init();
     ide_draw_editor();
     
-    /* Main loop - placeholder for now */
+    /* Main input loop */
     while (1) {
-        /* In a real implementation, this would:
-         * 1. Read keyboard input
-         * 2. Update editor state
-         * 3. Redraw screen
-         * 4. Handle keypresses (Ctrl+C to compile, etc.)
-         */
-        __asm__("hlt");
+        char ch = keyboard_get_ascii();
+        if (ch) {
+            if (ch == '\n') {
+                // Handle enter - move to next line
+                if (editor.cursor_y < MAX_LINES - 1) {
+                    editor.cursor_y++;
+                    editor.cursor_x = 0;
+                    if (editor.cursor_y >= editor.line_count) {
+                        editor.line_count = editor.cursor_y + 1;
+                    }
+                }
+            } else if (ch == 8) { // Backspace
+                if (editor.cursor_x > 0) {
+                    editor.cursor_x--;
+                } else if (editor.cursor_y > 0) {
+                    editor.cursor_y--;
+                    // Find end of previous line
+                    if (editor.lines[editor.cursor_y]) {
+                        editor.cursor_x = strlen(editor.lines[editor.cursor_y]);
+                    } else {
+                        editor.cursor_x = 0;
+                    }
+                }
+            } else if (ch >= 32 && ch <= 126) { // Printable characters
+                // Add character to current line
+                if (!editor.lines[editor.cursor_y]) {
+                    editor.lines[editor.cursor_y] = (char*)malloc(256);
+                    if (editor.lines[editor.cursor_y]) {
+                        memset(editor.lines[editor.cursor_y], 0, 256);
+                    }
+                }
+                if (editor.lines[editor.cursor_y]) {
+                    int len = strlen(editor.lines[editor.cursor_y]);
+                    if (len < 255) {
+                        editor.lines[editor.cursor_y][len] = ch;
+                        editor.cursor_x++;
+                    }
+                }
+            }
+            
+            // Redraw editor
+            ide_draw_editor();
+            ide_update_cursor();
+        }
+        
+        // Small delay to prevent busy waiting
+        for (volatile int i = 0; i < 1000; i++);
     }
 }
 
 /* Compile user code */
 int ide_compile(const char *code) {
+    (void)code;  // Mark parameter as unused
+    
     vid_clear();
     vid_print(0, 0, "Compiling VoyageC code...", 
               (COLOR_BLUE << 4) | COLOR_WHITE);

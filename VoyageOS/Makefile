@@ -1,123 +1,67 @@
-# VoyageOS Makefile
-# Main build script for the entire OS
-
-.PHONY: all clean run iso help boot kernel voyageide
-
-# Build variables
 NASM = nasm
 GCC = gcc
 LD = ld
 QEMU = qemu-system-x86_64
 
-CFLAGS = -ffreestanding -fno-stack-protector -fno-builtin -m64 -Wall -Wextra -Isrc
-LDFLAGS = -m elf_x86_64 -nostdlib -Ttext 0x10000
+CFLAGS = -ffreestanding -fno-stack-protector -fno-builtin -m64 -Wall -Wextra -Ikernel
+LDFLAGS = -m elf_x86_64 -nostdlib -Ttext 0x10000 -z noexecstack
 
 BUILD_DIR = build
-BOOT_DIR = bootloader
-KERNEL_DIR = kernel
-IDE_DIR = voyageide
-COMPILER_DIR = compiler
 
-# Default target
-all: boot kernel
-	@echo "✓ VoyageOS built successfully!"
-	@echo "Run 'make run' to test in QEMU"
+all: $(BUILD_DIR) boot kernel ide
+	@echo "VoyageOS + VoyageIDE built successfully!"
 
-help:
-	@echo "VoyageOS Build System"
-	@echo "====================\n"
-	@echo "Available targets:"
-	@echo "  make boot       - Build bootloader only"
-	@echo "  make kernel     - Build kernel only"
-	@echo "  make all        - Build everything"
-	@echo "  make run        - Run OS in QEMU"
-	@echo "  make clean      - Clean build artifacts"
-	@echo "  make help       - Show this message"
-
-# Create build directory
 $(BUILD_DIR):
-	@mkdir -p $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)
 
-# Bootloader targets
-boot: $(BUILD_DIR) $(BUILD_DIR)/boot.bin
-	@echo "✓ Bootloader compiled"
+boot: $(BUILD_DIR)/boot.bin
 
-$(BUILD_DIR)/boot.bin: $(BOOT_DIR)/bootloader.asm
-	@echo "Assembling bootloader..."
-	$(NASM) -f bin $(BOOT_DIR)/bootloader.asm -o $(BUILD_DIR)/boot.bin
-	@echo "  Size: $$(wc -c < $(BUILD_DIR)/boot.bin) bytes"
+$(BUILD_DIR)/boot.bin: bootloader/bootloader.asm
+	$(NASM) -f bin bootloader/bootloader.asm -o $(BUILD_DIR)/boot.bin
 
-# Kernel targets
-kernel: $(BUILD_DIR) $(BUILD_DIR)/kernel.bin
-	@echo "✓ Kernel compiled"
+kernel: $(BUILD_DIR)/kernel.bin
 
-$(BUILD_DIR)/entry.o: $(KERNEL_DIR)/entry.asm
-	@echo "Assembling kernel entry..."
-	$(NASM) -f elf64 $(KERNEL_DIR)/entry.asm -o $(BUILD_DIR)/entry.o
+$(BUILD_DIR)/entry.o: kernel/entry.asm
+	$(NASM) -f elf64 kernel/entry.asm -o $(BUILD_DIR)/entry.o
 
-$(BUILD_DIR)/isr.o: $(KERNEL_DIR)/isr.asm
-	@echo "Assembling ISRs..."
-	$(NASM) -f elf64 $(KERNEL_DIR)/isr.asm -o $(BUILD_DIR)/isr.o
+$(BUILD_DIR)/isr.o: kernel/isr.asm
+	$(NASM) -f elf64 kernel/isr.asm -o $(BUILD_DIR)/isr.o
 
-$(BUILD_DIR)/kernel.o: $(KERNEL_DIR)/kernel.c
-	@echo "Compiling kernel C code..."
-	$(GCC) $(CFLAGS) -c $(KERNEL_DIR)/kernel.c -o $(BUILD_DIR)/kernel.o
+$(BUILD_DIR)/kernel.o: kernel/kernel.c
+	$(GCC) $(CFLAGS) -c kernel/kernel.c -o $(BUILD_DIR)/kernel.o
 
-$(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/entry.o $(BUILD_DIR)/isr.o $(BUILD_DIR)/kernel.o
-	@echo "Linking kernel to ELF..."
-	$(LD) $(LDFLAGS) -o $(BUILD_DIR)/kernel.elf $(BUILD_DIR)/entry.o $(BUILD_DIR)/isr.o $(BUILD_DIR)/kernel.o
-	@echo "  Size ELF: $$(wc -c < $(BUILD_DIR)/kernel.elf) bytes"
+$(BUILD_DIR)/stdlib.o: kernel/stdlib.c
+	$(GCC) $(CFLAGS) -c kernel/stdlib.c -o $(BUILD_DIR)/stdlib.o
+
+$(BUILD_DIR)/io.o: kernel/io.c
+	$(GCC) $(CFLAGS) -c kernel/io.c -o $(BUILD_DIR)/io.o
+
+$(BUILD_DIR)/timer.o: kernel/timer.c
+	$(GCC) $(CFLAGS) -c kernel/timer.c -o $(BUILD_DIR)/timer.o
+
+$(BUILD_DIR)/init.o: kernel/init.c
+	$(GCC) $(CFLAGS) -c kernel/init.c -o $(BUILD_DIR)/init.o
+
+$(BUILD_DIR)/ide.o: voyageide/ide.c
+	$(GCC) $(CFLAGS) -c voyageide/ide.c -o $(BUILD_DIR)/ide.o
+
+$(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/entry.o $(BUILD_DIR)/isr.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/stdlib.o $(BUILD_DIR)/io.o $(BUILD_DIR)/timer.o $(BUILD_DIR)/init.o $(BUILD_DIR)/ide.o
+	$(LD) $(LDFLAGS) -o $@ $^
 
 $(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel.elf
-	@echo "Generating flat binary kernel..."
-	objcopy -O binary $(BUILD_DIR)/kernel.elf $(BUILD_DIR)/kernel.bin
-	@echo "  Size BIN: $$(wc -c < $(BUILD_DIR)/kernel.bin) bytes"
+	objcopy -O binary $< $@
 
-# Run in QEMU with separate window and audio
-run: floppy
-	@echo "Launching VoyageOS in QEMU (separate window)..."
-	@echo "Close the QEMU window to exit"
-	@qemu-system-x86_64 \
-		-fda $(BUILD_DIR)/floppy.img \
-		-m 256 \
-		-display gtk \
-		-audiodev pa,id=audio0 \
-		-machine pcspk-audiodev=audio0 \
-		-k en-us \
-		-name "VoyageOS" \
-		2>/dev/null || \
-	qemu-system-x86_64 \
-		-fda $(BUILD_DIR)/floppy.img \
-		-m 256 \
-		-display sdl \
-		-audiodev pulse,id=audio0 \
-		-machine pcspk-audiodev=audio0 \
-		2>/dev/null || \
-	qemu-system-x86_64 \
-		-fda $(BUILD_DIR)/floppy.img \
-		-m 256 \
-		2>/dev/null || true
+ide: $(BUILD_DIR)/ide.o
 
-# Create floppy image
 floppy: all
-	@echo "Creating floppy image..."
-	@dd if=/dev/zero of=$(BUILD_DIR)/floppy.img bs=1024 count=1440 2>/dev/null
-	@dd if=$(BUILD_DIR)/boot.bin of=$(BUILD_DIR)/floppy.img bs=512 count=1 conv=notrunc 2>/dev/null
-	@dd if=$(BUILD_DIR)/kernel.bin of=$(BUILD_DIR)/floppy.img bs=512 seek=1 conv=notrunc 2>/dev/null
-	@echo "✓ Floppy image created: $(BUILD_DIR)/floppy.img"
+	dd if=/dev/zero of=$(BUILD_DIR)/floppy.img bs=1024 count=1440 2>/dev/null
+	dd if=$(BUILD_DIR)/boot.bin of=$(BUILD_DIR)/floppy.img bs=512 count=1 conv=notrunc
+	dd if=$(BUILD_DIR)/kernel.bin of=$(BUILD_DIR)/floppy.img bs=512 seek=1 conv=notrunc
 
-# Clean build artifacts
+run: floppy
+	$(QEMU) -fda $(BUILD_DIR)/floppy.img -m 256
+
 clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf $(BUILD_DIR)
-	@echo "✓ Clean complete"
+	rm -rf $(BUILD_DIR)/*.o $(BUILD_DIR)/*.elf $(BUILD_DIR)/*.bin $(BUILD_DIR)/*.img
 
-# Debug info
-info:
-	@echo "VoyageOS Build Configuration"
-	@echo "============================"
-	@echo "Assembler: $(NASM)"
-	@echo "Compiler: $(GCC)"
-	@echo "Linker: $(LD)"
-	@echo "Emulator: $(QEMU)"
-	@echo "Build Dir: $(BUILD_DIR)"
+.PHONY: all boot kernel ide floppy run clean

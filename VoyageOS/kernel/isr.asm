@@ -1,96 +1,27 @@
-; VoyageOS Interrupt Service Routines (ISRs)
-; 64-bit exception handlers
-
+; VoyageOS ISR / Exception Handler Stub
 BITS 64
-extern exception_handler
 
-global isr0
-global isr1
-global isr2
-global isr3
-global isr4
-global isr5
-global isr6
-global isr7
-global isr8
-global isr9
-global isr10
-global isr11
-global isr12
-global isr13
-global isr14
-global isr15
-global isr16
-global isr17
-global isr18
-global isr19
-global isr20
-global isr21
-global isr22
-global isr23
-global isr24
-global isr25
-global isr26
-global isr27
-global isr28
-global isr29
-global isr30
-global isr31
-global isr32
+extern exception_handler   ; Now properly declared below
+
+global isr_common_stub
 
 %macro ISR_NOERRCODE 1
+    global isr%1
 isr%1:
-    push 0              ; Dummy error code
-    push %1             ; Interrupt number
+    push 0
+    push %1
     jmp isr_common_stub
 %endmacro
 
 %macro ISR_ERRCODE 1
+    global isr%1
 isr%1:
-    push %1             ; Interrupt number (error code already pushed)
+    push %1
     jmp isr_common_stub
 %endmacro
 
-; Exception ISRs
-ISR_NOERRCODE 0
-ISR_NOERRCODE 1
-ISR_NOERRCODE 2
-ISR_NOERRCODE 3
-ISR_NOERRCODE 4
-ISR_NOERRCODE 5
-ISR_NOERRCODE 6
-ISR_NOERRCODE 7
-ISR_ERRCODE   8
-ISR_NOERRCODE 9
-ISR_ERRCODE   10
-ISR_ERRCODE   11
-ISR_ERRCODE   12
-ISR_ERRCODE   13
-ISR_ERRCODE   14
-ISR_NOERRCODE 15
-ISR_NOERRCODE 16
-ISR_ERRCODE   17
-ISR_NOERRCODE 18
-ISR_NOERRCODE 19
-ISR_NOERRCODE 20
-ISR_NOERRCODE 21
-ISR_NOERRCODE 22
-ISR_NOERRCODE 23
-ISR_NOERRCODE 24
-ISR_NOERRCODE 25
-ISR_NOERRCODE 26
-ISR_NOERRCODE 27
-ISR_NOERRCODE 28
-ISR_NOERRCODE 29
-ISR_ERRCODE   30
-ISR_NOERRCODE 31
-
-; Keyboard interrupt (IRQ 1 -> ISR 32)
-ISR_NOERRCODE 32
-
 ; Common ISR stub
 isr_common_stub:
-    ; Save all registers
     push rax
     push rbx
     push rcx
@@ -107,12 +38,9 @@ isr_common_stub:
     push r14
     push r15
 
-    ; Call C handler
-    mov rdi, [rsp + 120]  ; Interrupt number
-    mov rsi, [rsp + 128]  ; Error code
+    mov rdi, rsp          ; Pass stack pointer to handler
     call exception_handler
 
-    ; Restore registers
     pop r15
     pop r14
     pop r13
@@ -129,8 +57,26 @@ isr_common_stub:
     pop rbx
     pop rax
 
-    ; Clean up stack
-    add rsp, 16
-
-    ; Return from interrupt
+    add rsp, 16           ; Remove error code + interrupt number
     iretq
+
+; Define common exceptions (you can expand later)
+ISR_NOERRCODE 0   ; Division by zero
+ISR_NOERRCODE 1   ; Debug
+ISR_NOERRCODE 2   ; NMI
+ISR_NOERRCODE 3   ; Breakpoint
+ISR_NOERRCODE 4   ; Overflow
+ISR_NOERRCODE 5   ; Bound range
+ISR_NOERRCODE 6   ; Invalid opcode
+ISR_NOERRCODE 7   ; Device not available
+ISR_ERRCODE   8   ; Double fault
+ISR_NOERRCODE 9   ; Coprocessor segment overrun
+ISR_ERRCODE   10  ; Invalid TSS
+ISR_ERRCODE   11  ; Segment not present
+ISR_ERRCODE   12  ; Stack-segment fault
+ISR_ERRCODE   13  ; General protection fault
+ISR_ERRCODE   14  ; Page fault
+
+; Hardware interrupts (IRQs)
+ISR_NOERRCODE 32  ; Timer (IRQ 0)
+ISR_NOERRCODE 33  ; Keyboard (IRQ 1)
