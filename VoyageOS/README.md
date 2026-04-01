@@ -1,101 +1,42 @@
 # VoyageOS
 
-A unique, from-scratch x86-64 operating system with an internal development environment (VoyageIDE). Taking inspiration from TempleOS but with its own identity and randomized theme.
+A modernized TempleOS-like operating system.
 
-## Vision
+## Features
 
-VoyageOS is built with the philosophy of:
-- **Self-hosted development**: Code and compile within the OS itself
-- **Minimalist design**: Focused on core functionality
-- **Creative freedom**: Randomized theme/aesthetics for unpredictability
-- **Learning journey**: Understanding OS internals from bootloader to userland
+- 64-bit kernel
+- Keyboard and mouse support
+- HolyC-like compiler and interpreter
+- Graphics and sound capabilities
+- Command shell
+- File system
 
-## Project Structure
+## Building
 
-```
-VoyageOS/
-├── bootloader/      # x86-64 bootloader (stage1/stage2)
-├── kernel/          # Core kernel implementation
-├── voyageide/       # Built-in IDE & development environment
-├── compiler/        # VoyageC compiler (C/Assembly hybrid)
-├── tools/           # Utility tools and system utilities
-├── scripts/         # Build and automation scripts
-└── docs/            # Documentation
-```
+To build the OS, you need a cross-compiler for x86_64.
 
-## Building VoyageOS
+Install binutils and GCC for x86_64-elf.
 
-```bash
-make         # Build everything (requires GCC, NASM, ld)
-make clean   # Clean build artifacts
-make run     # Run in QEMU emulator
-make iso     # Create bootable ISO
-```
+Then, run `make` in the root directory.
 
-## System Architecture
+## Running
 
-### Bootloader
-- 512-byte MBR bootloader
-- Stage 2 bootloader for long mode setup
-- Memory detection and GDT initialization
+Use QEMU to run the OS image.
 
-### Kernel
-- Interrupt handling (IDT)
-- Memory management (paging, heap allocation)
-- Process/task management
-- Virtual filesystem
+`qemu-system-x86_64 -kernel VoyageOS.bin`
 
-### VoyageIDE
-- Text editor with syntax highlighting
-- Integrated compiler
-- Debugger interface
-- Real-time code compilation
+This will boot the bare metal OS, display the welcome message and shell prompt, and wait for keyboard input.
 
-### Compiler (VoyageC)
-- C-like syntax with assembly interop
-- Fast compilation to native code
-- REPL for interactive development
+## Structure
 
-## Development
-
-The primary way to develop VoyageOS is through VoyageIDE, which runs within the OS itself. This allows for:
-- Writing kernel code in VoyageC
-- Immediate compilation and testing
-- Hot-reloading of modules (future)
-- Iterative OS development
-
-## Current Status
-
-🚀 Early development phase
-- [ ] Basic bootloader
-- [ ] Long mode (64-bit) support
-- [ ] Memory management
-- [ ] VoyageIDE (text editor + REPL)
-- [ ] Basic syscalls
-- [ ] Filesystem
-- [ ] Networking (future)
-
-## Building on macOS/Linux Host
-
-Requirements:
-- `nasm` - Assembler
-- `gcc` - C compiler
-- `ld` - Linker
-- `qemu` - Emulator (optional, for testing)
-- `xorriso` - ISO creation (optional)
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install nasm gcc qemu-system-x86 xorriso
-
-# macOS
-brew install nasm gcc qemu xorriso
-```
-
-## License
-
-This is a personal hobby project. Use and modify freely.
-
----
-
-*VoyageOS: Journey through your own operating system.*
+- `src/`: Source code
+  - `kernel/`: Kernel code
+  - `drivers/`: Device drivers
+  - `shell/`: Shell implementation
+  - `compiler/`: HolyC compiler
+  - `interpreter/`: Interpreter for scripts
+  - `fs/`: File system
+- `include/`: Header files
+- `boot/`: Bootloader
+- `scripts/`: Build scripts
+- `docs/`: Documentation
